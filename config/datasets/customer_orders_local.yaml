@@ -1,0 +1,42 @@
+dataset_name: customer_orders_local
+description: docker-compose local end-to-end test (MinIO source, Hive metastore target)
+owner: data-eng
+schedule: "@daily"
+tags: ["local", "compose", "smoke-test"]
+
+source:
+  type: s3_csv
+  options:
+    path: s3a://raw-bucket/customer_orders/
+  watermark_column: updated_at
+  schema:
+    - name: order_id
+      type: string
+      nullable: false
+    - name: customer_id
+      type: string
+      nullable: false
+    - name: amount
+      type: double
+      nullable: false
+    - name: updated_at
+      type: string
+      nullable: false
+
+targets:
+  - type: hive
+    write_mode: append
+    partition_columns: []
+    options:
+      table: default.customer_orders_local
+
+retry:
+  max_attempts: 1
+
+sla:
+  max_runtime_minutes: 10
+
+data_quality:
+  enabled: true
+  min_row_count: 0
+  fail_pipeline_on_violation: false

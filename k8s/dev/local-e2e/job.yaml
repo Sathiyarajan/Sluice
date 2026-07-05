@@ -1,0 +1,139 @@
+# Local-only smoke-test Job: same s3->hive flow verified via docker-compose
+# (docker/dev/local-e2e), run in-pod against the kind cluster instead.
+# Reuses the ExternalSecret-synced s3-credentials Secret (MinIO admin creds)
+# from k8s/secrets.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: customer-orders-local-config
+data:
+  customer_orders_local.yaml: |
+    dataset_name: customer_orders_local
+    description: kind local end-to-end test (MinIO source, Hive metastore target)
+    owner: data-eng
+    schedule: "@daily"
+    tags: ["local", "kind", "smoke-test"]
+
+    source:
+      type: s3_csv
+      options:
+        path: s3a://raw-bucket/customer_orders/
+      watermark_column: updated_at
+      schema:
+        - name: order_id
+          type: string
+          nullable: false
+        - name: customer_id
+          type: string
+          nullable: false
+        - name: amount
+          type: double
+          nullable: false
+        - name: updated_at
+          type: string
+          nullable: false
+
+    targets:
+      - type: hive
+        write_mode: append
+        partition_columns: []
+        options:
+          table: default.customer_orders_local
+
+    retry:
+      max_attempts: 1
+
+    sla:
+      max_runtime_minutes: 10
+
+    data_quality:
+      enabled: true
+      min_row_count: 0
+      fail_pipeline_on_violation: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: local-e2e-spark-conf
+data:
+  spark-defaults.conf: |
+    spark.hadoop.fs.s3a.endpoint http://minio:9000
+    spark.hadoop.fs.s3a.path.style.access true
+    spark.hadoop.fs.s3a.connection.ssl.enabled false
+    spark.hadoop.fs.s3a.impl org.apache.hadoop.fs.s3a.S3AFileSystem
+    spark.hadoop.fs.s3a.aws.credentials.provider org.apache.hadoop.fs.s3a.SimpleAWSCredentialsProvider
+    spark.sql.warehouse.dir /tmp/spark-warehouse
+    spark.sql.catalogImplementation hive
+    spark.sql.extensions io.delta.sql.DeltaSparkSessionExtension
+    spark.sql.catalog.spark_catalog org.apache.spark.sql.delta.catalog.DeltaCatalog
+  hive-site.xml: |
+    <?xml version="1.0"?>
+    <configuration>
+      <property>
+        <name>hive.metastore.uris</name>
+        <value>thrift://hive-metastore:9083</value>
+      </property>
+    </configuration>
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: customer-orders-local-run
+  labels:
+    app.kubernetes.io/part-of: ingestion-framework
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/part-of: ingestion-framework
+    spec:
+      restartPolicy: Never
+      serviceAccountName: ingestion-runner
+      containers:
+        - name: ingestion
+          image: sluice-runner:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - "--config-path"
+            - "/configs/customer_orders_local.yaml"
+          envFrom:
+            - secretRef:
+                name: s3-credentials
+          env:
+            - name: SPARK_MASTER
+              value: "local[*]"
+            - name: SPARK_DRIVER_MEMORY
+              value: "2g"
+            - name: SPARK_EXECUTOR_MEMORY
+              value: "2g"
+          resources:
+            requests:
+              cpu: "1"
+              memory: 2Gi
+            limits:
+              cpu: "2"
+              memory: 3Gi
+          volumeMounts:
+            - name: dataset-config
+              mountPath: /configs
+              readOnly: true
+            - name: spark-conf
+              mountPath: /opt/venv/lib/python3.11/site-packages/pyspark/conf/spark-defaults.conf
+              subPath: spark-defaults.conf
+              readOnly: true
+            - name: hive-conf
+              mountPath: /etc/hive/conf/hive-site.xml
+              subPath: hive-site.xml
+              readOnly: true
+      volumes:
+        - name: dataset-config
+          configMap:
+            name: customer-orders-local-config
+        - name: spark-conf
+          configMap:
+            name: local-e2e-spark-conf
+        - name: hive-conf
+          configMap:
+            name: local-e2e-spark-conf

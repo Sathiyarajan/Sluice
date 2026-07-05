@@ -1,0 +1,106 @@
+name: docker-build
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch: {}
+
+env:
+  REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'docker.io/CHANGEME' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - { name: base, path: docker/base }
+          - { name: reader-jdbc, path: docker/readers/jdbc }
+          - { name: reader-kafka, path: docker/readers/kafka }
+          - { name: reader-hive, path: docker/readers/hive }
+          - { name: reader-s3, path: docker/readers/s3 }
+          - { name: reader-databricks, path: docker/readers/databricks }
+          - { name: writer-databricks, path: docker/writers/databricks }
+          - { name: writer-snowflake, path: docker/writers/snowflake }
+          - { name: writer-hive, path: docker/writers/hive }
+          - { name: writer-s3, path: docker/writers/s3 }
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag
+        id: tag
+        run: echo "sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Build base image first for non-base targets
+        if: matrix.image.name != 'base'
+        run: |
+          docker build -f docker/base/Dockerfile -t ingestion-framework/base:latest .
+
+      - name: Build ${{ matrix.image.name }}
+        run: |
+          docker build \
+            -f ${{ matrix.image.path }}/Dockerfile \
+            -t ${{ env.REGISTRY }}/${{ matrix.image.name }}:${{ steps.tag.outputs.sha }} \
+            -t ${{ env.REGISTRY }}/${{ matrix.image.name }}:latest \
+            .
+
+      - name: Print image size
+        run: docker image inspect ${{ env.REGISTRY }}/${{ matrix.image.name }}:latest --format='{{.Size}}'
+
+      - name: Log in to registry
+        if: github.ref == 'refs/heads/main'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Push image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker push ${{ env.REGISTRY }}/${{ matrix.image.name }}:${{ steps.tag.outputs.sha }}
+          docker push ${{ env.REGISTRY }}/${{ matrix.image.name }}:latest
+
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build images needed for compose stack
+        run: |
+          docker build -f docker/base/Dockerfile -t ingestion-framework/base:latest .
+          docker build -f docker/readers/s3/Dockerfile -t ingestion-framework/reader-s3:latest .
+          docker build -f docker/writers/hive/Dockerfile -t ingestion-framework/writer-hive:latest .
+
+      - name: Run docker-compose end-to-end smoke test
+        run: |
+          docker compose up --build --abort-on-container-exit --exit-code-from runner
+        env:
+          COMPOSE_DOCKER_CLI_BUILD: 1
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
+
+  validate-k8s:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: kustomize build + dry-run every overlay
+        run: |
+          set -e
+          for dir in k8s/jobs/*/ k8s/cronjobs/*/ k8s/configmaps k8s/secrets; do
+            echo "== $dir =="
+            kustomize build "$dir" | kubectl apply --dry-run=client -f -
+          done

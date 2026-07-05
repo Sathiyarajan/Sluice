@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - ../../configmaps
+  - ../../secrets
+patches:
+  - patch: |-
+      $patch: delete
+      apiVersion: batch/v1
+      kind: CronJob
+      metadata:
+        name: ingestion-cronjob
+  - target:
+      kind: Job
+      name: ingestion-job
+    patch: |-
+      - op: replace
+        path: /metadata/name
+        value: customer-orders-run
+      - op: replace
+        path: /spec/template/spec/containers/0/image
+        value: REPLACE_ME_REGISTRY/reader-s3-writer-databricks:latest
+      - op: replace
+        path: /spec/template/spec/containers/0/args/1
+        value: /configs/customer_orders.yaml
+      - op: replace
+        path: /spec/template/spec/containers/0/envFrom/0/secretRef/name
+        value: databricks-credentials
+      - op: add
+        path: /spec/template/spec/containers/0/envFrom/-
+        value:
+          secretRef:
+            name: s3-credentials
+      - op: replace
+        path: /spec/template/spec/volumes/0/configMap/name
+        value: customer-orders-config

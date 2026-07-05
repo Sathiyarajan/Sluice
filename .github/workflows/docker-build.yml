@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}
 
 env:
-  REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'docker.io/CHANGEME' }}
+  REGISTRY: ${{ vars.CONTAINER_REGISTRY || 'ingestion-framework' }}
 
 jobs:
   build:

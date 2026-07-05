@@ -144,6 +144,7 @@ with `ClassNotFoundException: org.apache.spark.sql.delta.catalog.DeltaCatalog`.
 Build (from repo root, so `src/`/`pyproject.toml` are in context):
 
 ```bash
+export PATH="$PATH:/c/Program Files/Docker/Docker/resources/bin"
 docker build -f docker/base/Dockerfile -t dataforge-base:local .
 docker build -f docker/readers/s3/Dockerfile   --build-arg BASE_IMAGE=dataforge-base:local -t reader-s3:local .
 docker build -f docker/writers/hive/Dockerfile --build-arg BASE_IMAGE=dataforge-base:local -t writer-hive:local .

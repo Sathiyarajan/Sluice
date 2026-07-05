@@ -1,0 +1,17 @@
+Apache Sluice is an effort undergoing incubation at The Apache Software
+Foundation (ASF), sponsored by the Apache Incubator PMC.
+
+Incubation is required of all newly accepted projects until a further
+review indicates that the infrastructure, communications, and decision
+making process have stabilized in a manner consistent with other
+successful ASF projects.
+
+While incubation status is not necessarily a reflection of the
+completeness or stability of the code, it does indicate that the project
+has yet to be fully endorsed by the ASF.
+
+This DISCLAIMER must be removed only once the podling has graduated from
+the Incubator to a top-level project (or a subproject of an existing TLP).
+Until then, this file must be present at the root of the repository and
+referenced from the project website per Incubator policy:
+https://incubator.apache.org/policy/incubation.html

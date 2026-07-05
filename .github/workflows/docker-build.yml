@@ -89,18 +89,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-
       - name: Install kustomize
         run: |
           curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
           sudo mv kustomize /usr/local/bin/
 
-      - name: kustomize build + dry-run every overlay
+      - name: Install kubeconform
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: kustomize build + schema-validate every overlay
         run: |
           set -e
           for dir in k8s/jobs/*/ k8s/cronjobs/*/ k8s/configmaps k8s/secrets; do
             echo "== $dir =="
-            kustomize build "$dir" | kubectl apply --dry-run=client -f -
+            kustomize build "$dir" | kubeconform -strict -ignore-missing-schemas -summary
           done

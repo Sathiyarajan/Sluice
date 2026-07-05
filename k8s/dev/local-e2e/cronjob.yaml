@@ -1,0 +1,71 @@
+# Local-only CronJob analog of the smoke-test Job (job.yaml), for verifying
+# `kubectl create job --from=cronjob/...` works against a real schedule shape.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: customer-orders-local-cron
+  labels:
+    app.kubernetes.io/part-of: ingestion-framework
+spec:
+  schedule: "0 6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/part-of: ingestion-framework
+        spec:
+          restartPolicy: Never
+          serviceAccountName: ingestion-runner
+          containers:
+            - name: ingestion
+              image: sluice-runner:latest
+              imagePullPolicy: IfNotPresent
+              args:
+                - "--config-path"
+                - "/configs/customer_orders_local.yaml"
+              envFrom:
+                - secretRef:
+                    name: s3-credentials
+              env:
+                - name: SPARK_MASTER
+                  value: "local[*]"
+                - name: SPARK_DRIVER_MEMORY
+                  value: "2g"
+                - name: SPARK_EXECUTOR_MEMORY
+                  value: "2g"
+              resources:
+                requests:
+                  cpu: "1"
+                  memory: 2Gi
+                limits:
+                  cpu: "2"
+                  memory: 3Gi
+              volumeMounts:
+                - name: dataset-config
+                  mountPath: /configs
+                  readOnly: true
+                - name: spark-conf
+                  mountPath: /opt/venv/lib/python3.11/site-packages/pyspark/conf/spark-defaults.conf
+                  subPath: spark-defaults.conf
+                  readOnly: true
+                - name: hive-conf
+                  mountPath: /etc/hive/conf/hive-site.xml
+                  subPath: hive-site.xml
+                  readOnly: true
+          volumes:
+            - name: dataset-config
+              configMap:
+                name: customer-orders-local-config
+            - name: spark-conf
+              configMap:
+                name: local-e2e-spark-conf
+            - name: hive-conf
+              configMap:
+                name: local-e2e-spark-conf

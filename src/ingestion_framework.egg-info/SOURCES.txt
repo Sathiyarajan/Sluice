@@ -1,6 +1,8 @@
+README.md
 pyproject.toml
 src/ingestion/__init__.py
 src/ingestion/pipeline.py
+src/ingestion/run_pipeline.py
 src/ingestion/config/__init__.py
 src/ingestion/config/loader.py
 src/ingestion/config/models.py

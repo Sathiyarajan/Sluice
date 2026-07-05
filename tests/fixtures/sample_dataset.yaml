@@ -1,0 +1,46 @@
+dataset_name: customer_orders
+description: Customer orders incremental ingestion
+owner: data-eng
+schedule: "0 6 * * *"
+tags: ["sales", "orders"]
+
+source:
+  type: s3_parquet
+  options:
+    path: s3://raw-bucket/customer_orders/
+  watermark_column: updated_at
+  schema:
+    - name: order_id
+      type: string
+      nullable: false
+    - name: customer_id
+      type: string
+      nullable: false
+    - name: updated_at
+      type: timestamp
+      nullable: false
+
+targets:
+  - type: databricks_delta
+    write_mode: merge
+    merge_keys: ["order_id"]
+    partition_columns: ["order_date"]
+    options:
+      table: analytics.customer_orders
+
+retry:
+  max_attempts: 3
+  initial_delay_seconds: 2
+  backoff_multiplier: 2
+
+sla:
+  max_runtime_minutes: 45
+  alert_channels: ["slack:#data-eng-alerts", "email:oncall@example.com"]
+
+data_quality:
+  enabled: true
+  min_row_count: 1
+  max_null_fraction:
+    order_id: 0.0
+    customer_id: 0.01
+  fail_pipeline_on_violation: true

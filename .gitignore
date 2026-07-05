@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+spark-warehouse/
+.checkpoints/
+.airflow_home/
+autosys/generated/
+*.egg-info/
+.venv/
+venv/

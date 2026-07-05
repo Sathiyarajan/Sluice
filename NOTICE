@@ -1,0 +1,10 @@
+Sluice
+Copyright 2026 The Sluice Authors
+
+This product is intended for submission to the Apache Software Foundation
+(ASF) Incubator. Until acceptance, it is distributed independently under
+the Apache License, Version 2.0 (see LICENSE).
+
+This product includes software developed by third parties, including
+Apache Spark, Delta Lake, Apache Airflow, and other dependencies listed
+in pyproject.toml / requirements.txt, each under their own licenses.

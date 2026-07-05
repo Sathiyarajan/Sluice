@@ -20,11 +20,15 @@ jobs:
           - { name: reader-kafka, path: docker/readers/kafka }
           - { name: reader-hive, path: docker/readers/hive }
           - { name: reader-s3, path: docker/readers/s3 }
-          - { name: reader-databricks, path: docker/readers/databricks }
-          - { name: writer-databricks, path: docker/writers/databricks }
           - { name: writer-snowflake, path: docker/writers/snowflake }
           - { name: writer-hive, path: docker/writers/hive }
           - { name: writer-s3, path: docker/writers/s3 }
+          # reader-databricks / writer-databricks are intentionally excluded:
+          # they require the EULA-gated DatabricksJDBC42.jar to be placed
+          # manually in docker/readers/databricks/drivers/ (and the writer's
+          # equivalent) before building -- see each Dockerfile. Build those
+          # locally after obtaining the driver from
+          # https://www.databricks.com/spark/jdbc-drivers-download
     steps:
       - uses: actions/checkout@v4
 
